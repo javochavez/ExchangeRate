@@ -647,7 +647,59 @@
     /* ═══════════════════════════════════════════════
        Consulta a la API SIE de Banxico
        Serie SF43718: FIX USD/MXN (T+1)
+       Estrategia: llamada directa → proxy CORS (allorigins) → proxy CORS (corsproxy)
     ═══════════════════════════════════════════════ */
+
+    // Interpreta el JSON de Banxico y lanza errores tipificados
+    function parsearRespuestaBanxico(data) {
+      const serie = data?.bmx?.series?.[0];
+      const datos = serie?.datos;
+      if (!datos || datos.length === 0 || datos[0]?.dato === 'N/E') {
+        const e = new Error('SIN_DATO');
+        throw e;
+      }
+      return datos[0];
+    }
+
+    // Intento 1: llamada directa con header Bmx-Token
+    async function fetchDirecto(baseUrl, token) {
+      const resp = await fetch(baseUrl, {
+        headers: { 'Bmx-Token': token, 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (resp.status === 401 || resp.status === 403) throw new Error('TOKEN_INVALIDO');
+      if (resp.status === 400) throw new Error('FECHA_INVALIDA');
+      if (!resp.ok) throw new Error(`HTTP_${resp.status}`);
+      return resp.json();
+    }
+
+    // Intento 2: proxy allorigins.win (token en query param — la API Banxico lo acepta)
+    async function fetchViaAllorigins(baseUrl, token) {
+      const urlConToken = `${baseUrl}?token=${encodeURIComponent(token)}`;
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlConToken)}`;
+      const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(14000) });
+      if (!resp.ok) throw new Error(`PROXY_HTTP_${resp.status}`);
+      const wrapper = await resp.json();
+      if (!wrapper.contents) throw new Error('PROXY_VACIO');
+      const data = JSON.parse(wrapper.contents);
+      // allorigins devuelve el status HTTP de la URL original
+      const httpCode = wrapper.status?.http_code;
+      if (httpCode === 401 || httpCode === 403) throw new Error('TOKEN_INVALIDO');
+      if (httpCode === 400) throw new Error('FECHA_INVALIDA');
+      return data;
+    }
+
+    // Intento 3: corsproxy.io como segundo fallback
+    async function fetchViaCorsproxy(baseUrl, token) {
+      const urlConToken = `${baseUrl}?token=${encodeURIComponent(token)}`;
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(urlConToken)}`;
+      const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(14000) });
+      if (resp.status === 401 || resp.status === 403) throw new Error('TOKEN_INVALIDO');
+      if (resp.status === 400) throw new Error('FECHA_INVALIDA');
+      if (!resp.ok) throw new Error(`PROXY2_HTTP_${resp.status}`);
+      return resp.json();
+    }
+
     async function consultarFIX() {
       const fecha = document.getElementById('fecha-input').value; // YYYY-MM-DD
       const token = localStorage.getItem(KEY_TOKEN) || '';
@@ -668,45 +720,49 @@
       setCargando(true);
       ocultarError();
 
+      const baseUrl = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/${fecha}/${fecha}`;
+
       try {
-        const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/${fecha}/${fecha}`;
-        const resp = await fetch(url, {
-          headers: { 'Bmx-Token': token, 'Accept': 'application/json' }
-        });
+        let data = null;
 
-        if (resp.status === 400) {
-          mostrarError('Fecha fuera del rango disponible en Banxico o formato incorrecto.');
-          return;
-        }
-        if (resp.status === 401 || resp.status === 403) {
-          mostrarError('Token inválido o sin permisos. Verifique su token en Configuración.');
-          return;
-        }
-        if (!resp.ok) {
-          throw new Error(`Error HTTP ${resp.status}`);
-        }
-
-        const data = await resp.json();
-        const serie = data?.bmx?.series?.[0];
-        const datos = serie?.datos;
-
-        if (!datos || datos.length === 0 || datos[0]?.dato === 'N/E') {
-          mostrarError(
-            'Sin tipo de cambio FIX para la fecha seleccionada. ' +
-            'Banxico publica el FIX únicamente en días hábiles bancarios (lunes–viernes, excluyendo festivos oficiales).'
-          );
-          return;
+        // — Intento 1: directo —
+        try {
+          data = await fetchDirecto(baseUrl, token);
+        } catch (e1) {
+          if (e1.message === 'TOKEN_INVALIDO') throw e1;
+          if (e1.message === 'FECHA_INVALIDA') throw e1;
+          // CORS / timeout / red → intentar con proxy
+          console.warn('Llamada directa bloqueada (CORS), usando proxy allorigins…', e1.message);
+          try {
+            data = await fetchViaAllorigins(baseUrl, token);
+          } catch (e2) {
+            if (e2.message === 'TOKEN_INVALIDO') throw e2;
+            if (e2.message === 'FECHA_INVALIDA') throw e2;
+            console.warn('allorigins falló, usando corsproxy…', e2.message);
+            data = await fetchViaCorsproxy(baseUrl, token);
+          }
         }
 
-        const reg    = datos[0];
+        const reg    = parsearRespuestaBanxico(data);
         const partes = parseFloat(reg.dato).toFixed(4).split('.');
         mostrarResultado(fechaLarga(reg.fecha), partes[0], partes[1]);
 
       } catch (err) {
-        if (err instanceof TypeError && /fetch|network|failed/i.test(err.message)) {
-          mostrarError('Sin conexión a internet. Verifique su red e intente de nuevo.');
-        } else {
-          mostrarError('Error inesperado: ' + err.message);
+        switch (err.message) {
+          case 'TOKEN_INVALIDO':
+            mostrarError('Token inválido o sin permisos. Verifique su token en Configuración.');
+            break;
+          case 'FECHA_INVALIDA':
+            mostrarError('Fecha fuera del rango disponible en Banxico o formato incorrecto.');
+            break;
+          case 'SIN_DATO':
+            mostrarError(
+              'Sin tipo de cambio FIX para la fecha seleccionada. ' +
+              'Banxico publica el FIX únicamente en días hábiles bancarios (lunes–viernes, sin festivos oficiales).'
+            );
+            break;
+          default:
+            mostrarError('No se pudo obtener el tipo de cambio. Verifique su conexión e intente de nuevo. (' + err.message + ')');
         }
       } finally {
         setCargando(false);
