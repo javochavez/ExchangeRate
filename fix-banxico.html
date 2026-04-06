@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FIX Banxico">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#006847">
+  <title>Tipo de Cambio FIX · Banxico</title>
+  <link id="pwa-manifest" rel="manifest">
+
+  <style>
+    :root {
+      --verde:        #006847;
+      --verde-oscuro: #00502f;
+      --verde-claro:  #e6f4ee;
+      --oro:          #C8A951;
+      --blanco:       #ffffff;
+      --fondo:        #f0f5f1;
+      --gris:         #d8ddd9;
+      --texto:        #111;
+      --texto-suave:  #5a6660;
+      --error-bg:     #fff0f0;
+      --error-borde:  #f5c6c6;
+      --error-color:  #b00020;
+      --radio:        18px;
+      --sombra:       0 4px 24px rgba(0,0,0,0.10);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      background: var(--fondo);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      color: var(--texto);
+    }
+
+    /* ─── Header ─── */
+    .header {
+      background: var(--verde);
+      color: var(--blanco);
+      padding: 22px 24px 30px;
+      padding-top: calc(22px + env(safe-area-inset-top, 0px));
+      text-align: center;
+      position: relative;
+    }
+
+    .header-icono {
+      font-size: 40px;
+      line-height: 1;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+    }
+
+    .header p {
+      font-size: 13px;
+      opacity: 0.80;
+      margin-top: 3px;
+      letter-spacing: 0.2px;
+    }
+
+    /* ─── Content ─── */
+    .content {
+      flex: 1;
+      padding: 20px 16px;
+      max-width: 480px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ─── Card ─── */
+    .card {
+      background: var(--blanco);
+      border-radius: var(--radio);
+      padding: 20px;
+      box-shadow: var(--sombra);
+    }
+
+    .card-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--texto-suave);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+
+    /* ─── Campos ─── */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--texto-suave);
+      margin-bottom: 7px;
+    }
+
+    .field input[type="date"],
+    .field input[type="text"],
+    .field input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 17px;
+      border: 2px solid var(--gris);
+      border-radius: 12px;
+      outline: none;
+      color: var(--texto);
+      background: var(--blanco);
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .field input:focus { border-color: var(--verde); }
+
+    .token-row { display: flex; gap: 10px; align-items: flex-start; }
+    .token-row input { flex: 1; }
+
+    .btn-ojo {
+      padding: 14px 15px;
+      font-size: 18px;
+      background: var(--fondo);
+      border: 2px solid var(--gris);
+      border-radius: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1;
+      transition: background 0.15s;
+    }
+    .btn-ojo:active { background: var(--gris); }
+
+    /* ─── Botones ─── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 16px;
+      background: var(--verde);
+      color: var(--blanco);
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: -0.2px;
+    }
+    .btn:active   { background: var(--verde-oscuro); transform: scale(0.985); }
+    .btn:disabled { background: #9ab8a8; cursor: default; transform: none; }
+
+    .btn-sm {
+      width: auto;
+      padding: 11px 22px;
+      font-size: 15px;
+      border-radius: 10px;
+    }
+
+    /* ─── Token status bar ─── */
+    .token-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--blanco);
+      border-radius: var(--radio);
+      padding: 14px 18px;
+      box-shadow: var(--sombra);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .token-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--texto-suave);
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--gris);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.ok { background: #22c55e; }
+
+    .token-bar-arrow {
+      color: var(--texto-suave);
+      font-size: 13px;
+      transition: transform 0.2s;
+    }
+    .token-bar-arrow.abierto { transform: rotate(180deg); }
+
+    /* Token nota */
+    .nota-token {
+      font-size: 12px;
+      color: var(--texto-suave);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+    .nota-token a {
+      color: var(--verde);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    /* ─── Resultado ─── */
+    .resultado {
+      background: var(--verde);
+      border-radius: var(--radio);
+      padding: 28px 24px 24px;
+      box-shadow: var(--sombra);
+      color: var(--blanco);
+      text-align: center;
+      display: none;
+    }
+    .resultado.visible { display: block; }
+
+    .res-etiqueta {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.75;
+      margin-bottom: 5px;
+    }
+
+    .res-fecha {
+      font-size: 17px;
+      font-weight: 500;
+      opacity: 0.95;
+      text-transform: capitalize;
+      line-height: 1.3;
+    }
+
+    .res-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.22);
+      margin: 20px 0;
+    }
+
+    .res-tc-wrap {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .res-signo {
+      font-size: 26px;
+      font-weight: 400;
+      opacity: 0.80;
+    }
+
+    .res-entero {
+      font-size: 58px;
+      font-weight: 700;
+      letter-spacing: -3px;
+      line-height: 1;
+    }
+
+    .res-punto {
+      font-size: 34px;
+      font-weight: 700;
+      opacity: 0.85;
+      margin: 0 1px;
+    }
+
+    .res-decimal {
+      font-size: 34px;
+      font-weight: 600;
+      opacity: 0.85;
+      letter-spacing: -1px;
+    }
+
+    .res-moneda {
+      font-size: 13px;
+      opacity: 0.65;
+      margin-top: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .res-fuente {
+      font-size: 11px;
+      opacity: 0.55;
+      margin-top: 6px;
+    }
+
+    /* ─── Error ─── */
+    .error-box {
+      background: var(--error-bg);
+      border: 1px solid var(--error-borde);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: var(--error-color);
+      font-size: 14px;
+      line-height: 1.5;
+      display: none;
+    }
+    .error-box.visible { display: block; }
+
+    /* ─── Spinner ─── */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.35);
+      border-top-color: var(--blanco);
+      border-radius: 50%;
+      animation: girar 0.75s linear infinite;
+      display: none;
+      flex-shrink: 0;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    /* ─── Footer ─── */
+    .footer {
+      text-align: center;
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      font-size: 12px;
+      color: var(--texto-suave);
+      opacity: 0.75;
+    }
+
+    /* ─── Instalación hint ─── */
+    .install-hint {
+      background: var(--verde-claro);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--verde-oscuro);
+      line-height: 1.5;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <span class="header-icono">🏦</span>
+    <h1>Tipo de Cambio FIX</h1>
+    <p>Banco de México · USD / MXN</p>
+  </div>
+
+  <div class="content">
+
+    <!-- Barra de configuración de token -->
+    <div class="token-bar" onclick="toggleConfig()" role="button" aria-expanded="false" id="token-bar">
+      <div class="token-bar-left">
+        <span class="dot" id="token-dot"></span>
+        <span id="token-status-txt">Token Banxico — no configurado</span>
+      </div>
+      <span class="token-bar-arrow" id="token-arrow">▼</span>
+    </div>
+
+    <!-- Panel de configuración del token (oculto por defecto) -->
+    <div class="card" id="config-panel" style="display:none">
+      <div class="card-titulo">🔑 Token de acceso — API SIE Banxico</div>
+      <div class="field">
+        <label for="token-input">Token</label>
+        <div class="token-row">
+          <input type="password" id="token-input" placeholder="Pegue su token aquí" autocomplete="off" spellcheck="false">
+          <button class="btn-ojo" id="btn-ojo" onclick="toggleVerToken()" title="Mostrar / ocultar">👁</button>
+        </div>
+      </div>
+      <p class="nota-token">
+        Token gratuito en
+        <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/token" target="_blank" rel="noopener">banxico.org.mx/SieAPIRest/service/v1/token</a>
+        — requiere registro con e-mail institucional o personal.
+      </p>
+      <br>
+      <button class="btn btn-sm" onclick="guardarToken()">Guardar token</button>
+    </div>
+
+    <!-- Tarjeta de consulta -->
+    <div class="card">
+      <div class="card-titulo">📅 Consulta</div>
+      <div class="field">
+        <label for="fecha-input">Fecha</label>
+        <input type="date" id="fecha-input">
+      </div>
+      <button class="btn" id="btn-consultar" onclick="consultarFIX()">
+        <span id="btn-txt">Consultar tipo de cambio</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="error-box"></div>
+
+    <!-- Resultado -->
+    <div class="resultado" id="resultado">
+      <div class="res-etiqueta">Fecha</div>
+      <div class="res-fecha" id="res-fecha"></div>
+      <div class="res-divider"></div>
+      <div class="res-etiqueta">Tipo de cambio FIX (USD/MXN)</div>
+      <div class="res-tc-wrap">
+        <span class="res-signo">$</span>
+        <span class="res-entero" id="res-entero"></span>
+        <span class="res-punto">.</span>
+        <span class="res-decimal" id="res-decimal"></span>
+      </div>
+      <div class="res-moneda">pesos mexicanos por dólar</div>
+      <div class="res-fuente">Fuente: Banco de México · Serie SF43718</div>
+    </div>
+
+    <!-- Hint instalación (se muestra si no está instalada como PWA) -->
+    <div class="install-hint" id="install-hint"></div>
+
+  </div>
+
+  <div class="footer">FIX Banxico PWA · Datos oficiales del Banco de México</div>
+
+  <script>
+    /* ═══════════════════════════════════════════════
+       PWA: Manifest dinámico + Service Worker
+    ═══════════════════════════════════════════════ */
+    (function initPWA() {
+      // Ícono generado con Canvas
+      function buildIconDataURI(size) {
+        try {
+          const c = document.createElement('canvas');
+          c.width = size; c.height = size;
+          const ctx = c.getContext('2d');
+          // Fondo verde con esquinas redondeadas
+          const r = size * 0.22;
+          ctx.beginPath();
+          ctx.moveTo(r, 0);
+          ctx.lineTo(size - r, 0);
+          ctx.quadraticCurveTo(size, 0, size, r);
+          ctx.lineTo(size, size - r);
+          ctx.quadraticCurveTo(size, size, size - r, size);
+          ctx.lineTo(r, size);
+          ctx.quadraticCurveTo(0, size, 0, size - r);
+          ctx.lineTo(0, r);
+          ctx.quadraticCurveTo(0, 0, r, 0);
+          ctx.closePath();
+          ctx.fillStyle = '#006847';
+          ctx.fill();
+          // Símbolo $
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.round(size * 0.52)}px -apple-system, Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('$', size / 2, size / 2 + size * 0.03);
+          return c.toDataURL('image/png');
+        } catch (e) { return ''; }
+      }
+
+      // Apple touch icon dinámico
+      try {
+        const uri180 = buildIconDataURI(180);
+        if (uri180) {
+          const link = document.createElement('link');
+          link.rel = 'apple-touch-icon';
+          link.href = uri180;
+          document.head.appendChild(link);
+        }
+      } catch(e) {}
+
+      // Manifest
+      try {
+        const uri192 = buildIconDataURI(192);
+        const uri512 = buildIconDataURI(512);
+        const manifest = {
+          name: 'Tipo de Cambio FIX — Banxico',
+          short_name: 'FIX Banxico',
+          description: 'Consulta el tipo de cambio FIX USD/MXN del Banco de México',
+          start_url: './',
+          display: 'standalone',
+          background_color: '#006847',
+          theme_color: '#006847',
+          lang: 'es-MX',
+          icons: [
+            { src: uri192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: uri512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+        document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+      } catch(e) {}
+
+      // Service Worker (blob — funciona en Chrome/Android; en Safari/iOS el caché no aplica pero la app sí)
+      if ('serviceWorker' in navigator) {
+        const swSrc = `
+          const CACHE = 'fix-banxico-v1';
+          self.addEventListener('install', e => { self.skipWaiting(); });
+          self.addEventListener('activate', e => { self.clients.claim(); });
+          self.addEventListener('fetch', e => {
+            // No cachear llamadas a la API de Banxico
+            if (e.request.url.includes('banxico.org.mx')) return;
+            e.respondWith(
+              caches.open(CACHE).then(cache =>
+                cache.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+                  cache.put(e.request, res.clone());
+                  return res;
+                }))
+              )
+            );
+          });
+        `;
+        try {
+          const swBlob = new Blob([swSrc], { type: 'application/javascript' });
+          navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+        } catch(e) {}
+      }
+
+      // Hint de instalación
+      if (window.navigator.standalone === false || (window.matchMedia && !window.matchMedia('(display-mode: standalone)').matches)) {
+        const ua = navigator.userAgent;
+        const hint = document.getElementById('install-hint');
+        if (/iphone|ipad|ipod/i.test(ua)) {
+          hint.innerHTML = '📲 <strong>Instalar en iOS:</strong> toque el botón Compartir (⬆) de Safari y seleccione <em>"Agregar a pantalla de inicio"</em>.';
+          hint.style.display = 'block';
+        } else if (/android/i.test(ua)) {
+          hint.innerHTML = '📲 <strong>Instalar en Android:</strong> toque el menú (⋮) de Chrome y seleccione <em>"Añadir a pantalla principal"</em>.';
+          hint.style.display = 'block';
+        }
+      }
+    })();
+
+    /* ═══════════════════════════════════════════════
+       Gestión del token
+    ═══════════════════════════════════════════════ */
+    const KEY_TOKEN = 'banxico-fix-token';
+
+    function actualizarEstadoToken() {
+      const token = localStorage.getItem(KEY_TOKEN) || '';
+      const dot   = document.getElementById('token-dot');
+      const txt   = document.getElementById('token-status-txt');
+      const inp   = document.getElementById('token-input');
+      if (token) {
+        dot.classList.add('ok');
+        txt.textContent = 'Token Banxico — configurado ✓';
+        inp.value = token;
+      } else {
+        dot.classList.remove('ok');
+        txt.textContent = 'Token Banxico — no configurado';
+      }
+    }
+
+    function toggleConfig() {
+      const panel = document.getElementById('config-panel');
+      const arrow = document.getElementById('token-arrow');
+      const bar   = document.getElementById('token-bar');
+      const visible = panel.style.display !== 'none';
+      panel.style.display = visible ? 'none' : 'block';
+      arrow.classList.toggle('abierto', !visible);
+      bar.setAttribute('aria-expanded', String(!visible));
+    }
+
+    function toggleVerToken() {
+      const inp = document.getElementById('token-input');
+      const btn = document.getElementById('btn-ojo');
+      const es_pwd = inp.type === 'password';
+      inp.type = es_pwd ? 'text' : 'password';
+      btn.textContent = es_pwd ? '🙈' : '👁';
+    }
+
+    function guardarToken() {
+      const val = (document.getElementById('token-input').value || '').trim();
+      if (!val) { mostrarError('Ingrese un token válido antes de guardar.'); return; }
+      localStorage.setItem(KEY_TOKEN, val);
+      actualizarEstadoToken();
+      document.getElementById('config-panel').style.display = 'none';
+      document.getElementById('token-arrow').classList.remove('abierto');
+      ocultarError();
+    }
+
+    /* ═══════════════════════════════════════════════
+       Utilidades UI
+    ═══════════════════════════════════════════════ */
+    function setCargando(cargando) {
+      const btn     = document.getElementById('btn-consultar');
+      const spinner = document.getElementById('spinner');
+      const txt     = document.getElementById('btn-txt');
+      btn.disabled           = cargando;
+      spinner.style.display  = cargando ? 'block' : 'none';
+      txt.textContent        = cargando ? 'Consultando…' : 'Consultar tipo de cambio';
+    }
+
+    function mostrarError(msg) {
+      const box = document.getElementById('error-box');
+      box.innerHTML = '⚠️ ' + msg;
+      box.classList.add('visible');
+    }
+
+    function ocultarError() {
+      document.getElementById('error-box').classList.remove('visible');
+    }
+
+    function mostrarResultado(fechaLarga, entero, decimal) {
+      document.getElementById('res-fecha').textContent   = fechaLarga;
+      document.getElementById('res-entero').textContent  = entero;
+      document.getElementById('res-decimal').textContent = decimal;
+      const res = document.getElementById('resultado');
+      res.classList.add('visible');
+      res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      ocultarError();
+    }
+
+    function ocultarResultado() {
+      document.getElementById('resultado').classList.remove('visible');
+    }
+
+    /* ═══════════════════════════════════════════════
+       Formateo de fecha (respuesta Banxico: DD/MM/YYYY)
+    ═══════════════════════════════════════════════ */
+    function fechaLarga(ddmmyyyy) {
+      const [dd, mm, yyyy] = ddmmyyyy.split('/');
+      // Construir con hora fija para evitar desfase de zona horaria
+      const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), 12, 0, 0);
+      return d.toLocaleDateString('es-MX', {
+        weekday: 'long',
+        day:     'numeric',
+        month:   'long',
+        year:    'numeric'
+      });
+    }
+
+    /* ═══════════════════════════════════════════════
+       Consulta a la API SIE de Banxico
+       Serie SF43718: FIX USD/MXN (T+1)
+    ═══════════════════════════════════════════════ */
+    async function consultarFIX() {
+      const fecha = document.getElementById('fecha-input').value; // YYYY-MM-DD
+      const token = localStorage.getItem(KEY_TOKEN) || '';
+
+      ocultarResultado();
+
+      if (!token) {
+        mostrarError('Configure su token de acceso Banxico antes de consultar.');
+        document.getElementById('config-panel').style.display = 'block';
+        document.getElementById('token-arrow').classList.add('abierto');
+        return;
+      }
+      if (!fecha) {
+        mostrarError('Seleccione una fecha.');
+        return;
+      }
+
+      setCargando(true);
+      ocultarError();
+
+      try {
+        const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/${fecha}/${fecha}`;
+        const resp = await fetch(url, {
+          headers: { 'Bmx-Token': token, 'Accept': 'application/json' }
+        });
+
+        if (resp.status === 400) {
+          mostrarError('Fecha fuera del rango disponible en Banxico o formato incorrecto.');
+          return;
+        }
+        if (resp.status === 401 || resp.status === 403) {
+          mostrarError('Token inválido o sin permisos. Verifique su token en Configuración.');
+          return;
+        }
+        if (!resp.ok) {
+          throw new Error(`Error HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const serie = data?.bmx?.series?.[0];
+        const datos = serie?.datos;
+
+        if (!datos || datos.length === 0 || datos[0]?.dato === 'N/E') {
+          mostrarError(
+            'Sin tipo de cambio FIX para la fecha seleccionada. ' +
+            'Banxico publica el FIX únicamente en días hábiles bancarios (lunes–viernes, excluyendo festivos oficiales).'
+          );
+          return;
+        }
+
+        const reg    = datos[0];
+        const partes = parseFloat(reg.dato).toFixed(4).split('.');
+        mostrarResultado(fechaLarga(reg.fecha), partes[0], partes[1]);
+
+      } catch (err) {
+        if (err instanceof TypeError && /fetch|network|failed/i.test(err.message)) {
+          mostrarError('Sin conexión a internet. Verifique su red e intente de nuevo.');
+        } else {
+          mostrarError('Error inesperado: ' + err.message);
+        }
+      } finally {
+        setCargando(false);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
+       Fecha por defecto: hoy
+    ═══════════════════════════════════════════════ */
+    function fechaHoy() {
+      const hoy = new Date();
+      const yyyy = hoy.getFullYear();
+      const mm   = String(hoy.getMonth() + 1).padStart(2, '0');
+      const dd   = String(hoy.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    /* ═══════════════════════════════════════════════
+       Inicialización
+    ═══════════════════════════════════════════════ */
+    actualizarEstadoToken();
+    document.getElementById('fecha-input').value = fechaHoy();
+
+    // Enter en el campo fecha → consultar
+    document.getElementById('fecha-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') consultarFIX();
+    });
+
+    // Enter en el campo token → guardar
+    document.getElementById('token-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') guardarToken();
+    });
+  </script>
+</body>
+</html>
