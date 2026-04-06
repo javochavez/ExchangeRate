@@ -110,7 +110,7 @@
     <h1>Tipo de Cambio Oficial</h1>
     <p>FIX &amp; DOF · Banco de México · USD/MXN</p>
   </div>
- 
+
   <div class="content">
     <div class="token-bar" onclick="toggleConfig()" id="token-bar">
       <div class="token-bar-left">
@@ -119,7 +119,7 @@
       </div>
       <span class="token-bar-arrow" id="token-arrow">▼</span>
     </div>
- 
+
     <div class="card" id="config-panel" style="display:none">
       <div class="card-titulo">🔑 Token de acceso — API SIE Banxico</div>
       <div class="field">
@@ -135,7 +135,7 @@
       <br>
       <button class="btn btn-sm" onclick="guardarToken()">Guardar token</button>
     </div>
- 
+
     <div class="card">
       <div class="card-titulo">📅 Consulta</div>
       <div class="field">
@@ -147,9 +147,9 @@
         <div class="spinner" id="spinner"></div>
       </button>
     </div>
- 
+
     <div class="error-box" id="error-box"></div>
- 
+
     <div class="resultado" id="resultado">
       <div class="res-fecha-label">Fecha consultada</div>
       <div class="res-fecha" id="res-fecha"></div>
@@ -167,23 +167,26 @@
       </div>
       <div class="res-fuente">Banco de México · SIE · Series SF43718 y SF60653</div>
     </div>
- 
+
     <div class="nota-box" id="nota-box">
       <p>
-        <strong>FIX</strong>: Banxico lo determina al mediodía del día D; liquida obligaciones
-        en moneda extranjera el día D+1.<br><br>
-        <strong>DOF</strong>: Es el FIX del día hábil anterior, publicado formalmente en el
-        Diario Oficial de la Federación. Cuando la póliza o contrato indica
-        <em>"tipo de cambio publicado en el DOF en la fecha del siniestro"</em>,
-        aplica esta columna (Art. 20, Ley Monetaria).
+        <strong>FIX</strong>: Banxico lo determina al mediodía del día D (Serie SF43718).
+        Se usa para liquidar obligaciones en moneda extranjera el día hábil siguiente (D+1).<br><br>
+        <strong>DOF</strong>: Es el FIX del día hábil <em>anterior</em> (D−1), publicado
+        formalmente en el Diario Oficial de la Federación en la fecha consultada.
+        Cuando la póliza, contrato o resolución indica <em>"al tipo de cambio publicado
+        en el DOF en la fecha del siniestro"</em>, aplica este valor
+        (Art. 20, Ley Monetaria de los Estados Unidos Mexicanos).<br><br>
+        Ambos valores provienen de la misma serie SF43718; el DOF corresponde
+        al registro del día hábil bancario inmediatamente anterior.
       </p>
     </div>
- 
+
     <div class="install-hint" id="install-hint"></div>
   </div>
- 
+
   <div class="footer">FIX &amp; DOF Banxico PWA · Datos oficiales del Banco de México</div>
- 
+
   <script>
     /* ── PWA ── */
     (function(){
@@ -260,7 +263,7 @@
         if(hint.innerHTML)hint.style.display='block';
       }
     })();
- 
+
     /* ── Token ── */
     var KEY='banxico-fix-token';
     function actualizarEstadoToken(){
@@ -291,7 +294,7 @@
       document.getElementById('token-arrow').classList.remove('abierto');
       ocultarError();
     }
- 
+
     /* ── UI ── */
     function setCargando(v){
       document.getElementById('btn-consultar').disabled=v;
@@ -328,7 +331,49 @@
         weekday:'long',day:'numeric',month:'long',year:'numeric'
       });
     }
- 
+
+    /* ── Parseo del rango de SF43718 ──────────────────────────────────────────
+       El backend devuelve SF43718 para un rango de ~12 días que termina en
+       la fecha solicitada. El arreglo datos viene ordenado ascendente (Banxico).
+       Lógica:
+         FIX → entrada cuya fecha coincide con la fecha solicitada (si es día hábil)
+         DOF → la entrada inmediatamente anterior (día hábil previo = lo que
+               aparece publicado en el DOF en la fecha solicitada, conforme
+               Art. 20 Ley Monetaria)
+       Si la fecha solicitada es festivo/fin de semana, FIX = "No disponible"
+       y DOF = la última entrada (día hábil más reciente).
+    ─────────────────────────────────────────────────────────────────────────── */
+    function parsearRango(data, fecha) {
+      var serie = data && data.bmx && data.bmx.series && data.bmx.series[0];
+      if (!serie) throw new Error('Respuesta inesperada de Banxico');
+
+      // Filtrar N/E y construir lista de entradas válidas
+      var todos = (serie.datos || []).filter(function(e){ return e.dato !== 'N/E'; });
+      if (todos.length === 0) return { fix: null, dof: null };
+
+      // Convertir fecha YYYY-MM-DD → DD/MM/YYYY (formato Banxico)
+      var p = fecha.split('-');
+      var fechaBanxico = p[2] + '/' + p[1] + '/' + p[0];
+
+      // Buscar la entrada que corresponde a la fecha solicitada
+      var idxFix = -1;
+      for (var i = 0; i < todos.length; i++) {
+        if (todos[i].fecha === fechaBanxico) { idxFix = i; break; }
+      }
+
+      var fix, dof;
+      if (idxFix >= 0) {
+        // Fecha solicitada es día hábil
+        fix = todos[idxFix];
+        dof = idxFix > 0 ? todos[idxFix - 1] : null;
+      } else {
+        // Fecha solicitada es festivo o fin de semana
+        fix = null;
+        dof = todos[todos.length - 1]; // día hábil más reciente del rango
+      }
+      return { fix: fix, dof: dof };
+    }
+
     /* ── Consulta principal (llama a /api/banxico — mismo origen, sin CORS) ── */
     async function consultarTC(){
       var fecha=document.getElementById('fecha-input').value;
@@ -343,41 +388,27 @@
       if(!fecha){mostrarError('Seleccione una fecha.');return;}
       setCargando(true);ocultarError();
       try{
-        // Llamada al proxy serverless propio — sin CORS, sin rate limiting externo
         var url='/api/banxico?fecha='+encodeURIComponent(fecha)+'&token='+encodeURIComponent(tok);
         var r=await fetch(url,{signal:AbortSignal.timeout(12000)});
-        if(r.status===400){
-          mostrarError('Fecha fuera del rango disponible o formato incorrecto.');
-          return;
-        }
-        if(r.status===401||r.status===403){
-          mostrarError('Token inválido o sin permisos. Verifique su token en Configuración.');
-          return;
-        }
-        if(r.status===504){
-          mostrarError('Banxico tardó demasiado en responder. Intente de nuevo.');
-          return;
-        }
-        if(!r.ok){
-          throw new Error('HTTP '+r.status);
-        }
+        if(r.status===400){mostrarError('Fecha fuera del rango disponible o formato incorrecto.');return;}
+        if(r.status===401||r.status===403){mostrarError('Token inválido o sin permisos. Verifique su token en Configuración.');return;}
+        if(r.status===504){mostrarError('Banxico tardó demasiado en responder. Intente de nuevo.');return;}
+        if(!r.ok){throw new Error('HTTP '+r.status);}
+
         var data=await r.json();
-        var series=data&&data.bmx&&data.bmx.series;
-        if(!series)throw new Error('Respuesta inesperada de Banxico');
-        var fix=series.find(function(s){return s.idSerie==='SF43718';});
-        var dof=series.find(function(s){return s.idSerie==='SF60653';});
-        var fd=fix&&fix.datos&&fix.datos[0];
-        var dd=dof&&dof.datos&&dof.datos[0];
-        var ambosND=(!fd||fd.dato==='N/E')&&(!dd||dd.dato==='N/E');
-        if(ambosND){
-          mostrarError('Sin datos para la fecha seleccionada. Banxico publica el FIX y el DOF únicamente en días hábiles bancarios (lunes–viernes, sin festivos oficiales).');
+        var res=parsearRango(data, fecha);
+        var fix=res.fix, dof=res.dof;
+
+        if(!fix && !dof){
+          mostrarError('Sin datos para la fecha seleccionada. Verifique que esté dentro del rango disponible en Banxico.');
           return;
         }
-        var ref='';
-        if(fd&&fd.dato&&fd.dato!=='N/E')ref=fechaLarga(fd.fecha);
-        else if(dd&&dd.dato&&dd.dato!=='N/E')ref=fechaLarga(dd.fecha);
-        else{var p=fecha.split('-');ref=fechaLarga(p[2]+'/'+p[1]+'/'+p[0]);}
-        mostrarResultado(ref,fd,dd);
+
+        // Encabezado: mostrar la fecha solicitada
+        var p=fecha.split('-');
+        var ref=fechaLarga(p[2]+'/'+p[1]+'/'+p[0]);
+
+        mostrarResultado(ref, fix, dof);
       }catch(err){
         if(err.name==='TimeoutError'||err.name==='AbortError')
           mostrarError('Sin respuesta del servidor. Verifique su conexión e intente de nuevo.');
@@ -387,7 +418,7 @@
         setCargando(false);
       }
     }
- 
+
     /* ── Init ── */
     actualizarEstadoToken();
     (function(){
